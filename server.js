@@ -7,13 +7,28 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
 const distDir = path.join(__dirname, 'dist');
 
-console.log('Current working directory:', process.cwd());
-console.log('__dirname:', __dirname);
-console.log('distDir:', distDir);
-console.log('dist folder exists:', fs.existsSync(distDir));
+console.log('[SERVER] Starting initialization');
+console.log('[SERVER] Working directory:', process.cwd());
+console.log('[SERVER] __dirname:', __dirname);
+console.log('[SERVER] distDir:', distDir);
+console.log('[SERVER] dist folder exists:', fs.existsSync(distDir));
 
-if (fs.existsSync(distDir)) {
-  console.log('Contents of dist:', fs.readdirSync(distDir));
+let indexHtml = '';
+
+try {
+  if (fs.existsSync(distDir)) {
+    const files = fs.readdirSync(distDir);
+    console.log('[SERVER] Contents of dist:', files);
+
+    const indexPath = path.join(distDir, 'index.html');
+    console.log('[SERVER] Attempting to read index.html from:', indexPath);
+    indexHtml = fs.readFileSync(indexPath, 'utf-8');
+    console.log('[SERVER] Successfully loaded index.html, size:', indexHtml.length, 'bytes');
+  } else {
+    console.error('[SERVER] ERROR: dist folder does not exist!');
+  }
+} catch (err) {
+  console.error('[SERVER] ERROR during initialization:', err.message);
 }
 
 const mimeTypes = {
@@ -30,53 +45,69 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(distDir, req.url);
+  try {
+    const requestPath = req.url === '/' ? '/index.html' : req.url;
+    const filePath = path.join(distDir, requestPath);
 
-  if (req.url === '/' || req.url.endsWith('/')) {
-    filePath = path.join(distDir, 'index.html');
-  }
+    console.log('[SERVER] Request:', req.method, requestPath);
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      console.log('Error reading file:', filePath, err.code);
-      // If file not found, serve index.html (SPA fallback)
-      fs.readFile(path.join(distDir, 'index.html'), (err, data) => {
-        if (err) {
-          console.error('Error reading index.html:', err.message);
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end('Error loading application: ' + err.message);
-          return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(data);
-      });
-    } else {
-      const ext = path.extname(filePath).toLowerCase();
-      const contentType = mimeTypes[ext] || 'application/octet-stream';
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(data);
+    // Security: prevent directory traversal
+    const resolvedPath = path.resolve(filePath);
+    const resolvedDir = path.resolve(distDir);
+    if (!resolvedPath.startsWith(resolvedDir)) {
+      console.log('[SERVER] Blocked directory traversal attempt:', requestPath);
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
     }
-  });
+
+    // Try to read the file
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        console.log('[SERVER] File not found:', requestPath, 'error:', err.code);
+        // Serve index.html as fallback for SPA routing
+        fs.readFile(path.join(distDir, 'index.html'), (fallbackErr, fallbackData) => {
+          if (fallbackErr) {
+            console.error('[SERVER] Failed to serve fallback index.html:', fallbackErr.message);
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Internal Server Error');
+            return;
+          }
+          console.log('[SERVER] Serving fallback index.html for:', requestPath);
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(fallbackData);
+        });
+      } else {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        console.log('[SERVER] Serving file:', requestPath, 'type:', contentType, 'size:', data.length);
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(data);
+      }
+    });
+  } catch (err) {
+    console.error('[SERVER] Unexpected error handling request:', err.message);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Internal Server Error');
+  }
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err.message);
+  console.error('[PROCESS] Uncaught Exception:', err.message);
   console.error(err.stack);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('[PROCESS] Unhandled Rejection:', reason);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  process.stdout.write(''); // Force flush of stdout
+  console.log('[SERVER] ✓ HTTP server listening on port', PORT);
 });
 
 server.on('error', (err) => {
-  console.error('Server error:', err.message);
+  console.error('[SERVER] Server error:', err.message);
   console.error(err.stack);
-  // Don't exit - try to keep running
 });
