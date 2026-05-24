@@ -1,1 +1,1 @@
-web: node server-express.js
+web: npm run build && node server-debug.js
