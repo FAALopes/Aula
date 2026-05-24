@@ -59,11 +59,24 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message);
+  console.error(err.stack);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  process.stdout.write(''); // Force flush of stdout
 });
 
 server.on('error', (err) => {
   console.error('Server error:', err.message);
-  process.exit(1);
+  console.error(err.stack);
+  // Don't exit - try to keep running
 });
