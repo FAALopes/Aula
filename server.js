@@ -7,17 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
 const distDir = path.join(__dirname, 'dist');
 
-console.log('PORT env var:', process.env.PORT);
-console.log('Using port:', PORT);
-
-let indexHtml = '';
-try {
-  const indexPath = path.join(distDir, 'index.html');
-  indexHtml = fs.readFileSync(indexPath, 'utf-8');
-  console.log('Loaded index.html:', indexHtml.length, 'bytes');
-} catch (err) {
-  console.error('Failed to load index.html:', err.message);
-}
+console.log('PORT:', PORT);
+console.log('distDir:', distDir);
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -32,31 +23,20 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 };
 
-console.log('Creating HTTP server...');
-
 const server = http.createServer((req, res) => {
-  console.log('Request received:', req.method, req.url);
+  let filePath = path.join(distDir, req.url);
 
-  const requestPath = req.url === '/' ? '/index.html' : req.url;
-  const filePath = path.join(distDir, requestPath);
-
-  const resolvedPath = path.resolve(filePath);
-  const resolvedDir = path.resolve(distDir);
-
-  if (!resolvedPath.startsWith(resolvedDir)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
+  if (req.url === '/' || req.url.endsWith('/')) {
+    filePath = path.join(distDir, 'index.html');
   }
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      console.log('File not found, serving index.html for SPA routing');
+      // SPA fallback - serve index.html
       fs.readFile(path.join(distDir, 'index.html'), (err, data) => {
         if (err) {
-          console.error('Error reading index.html:', err.message);
-          res.writeHead(500);
-          res.end('Error');
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Error: ' + err.message);
           return;
         }
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -71,12 +51,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-console.log('Starting server...');
-
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('Server listening on port', PORT);
-});
-
-server.on('error', (err) => {
-  console.error('Server error:', err.message);
 });
