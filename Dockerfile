@@ -1,18 +1,13 @@
-FROM node:18-alpine
+FROM node:18
 
 WORKDIR /app
 
 COPY package*.json ./
-
-RUN npm ci --only=production
+RUN npm install
 
 COPY . .
-
 RUN npm run build
-
-ENV NODE_ENV=production
-ENV PORT=8080
 
 EXPOSE 8080
 
-CMD ["node", "server-debug.js"]
+CMD ["node", "server-simple.js"]
