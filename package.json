@@ -1,12 +1,11 @@
 {
   "name": "aula-dashboard",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server-express.js"
+    "start": "node server-simple.js"
   },
   "dependencies": {
     "chart.js": "^4.4.1",
